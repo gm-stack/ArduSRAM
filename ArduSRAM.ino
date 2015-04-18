@@ -6,8 +6,9 @@
 #define A_4 A4
 #define A_5 A5
 #define A_6 11
-#define A_7 13
-#define A_8 12
+#define A_7 12
+
+#define A_LATCH 13
 
 #define D_0 2
 #define D_1 3
@@ -29,13 +30,17 @@ void setup() {
   pinMode(A_5, OUTPUT);
   pinMode(A_6, OUTPUT);
   pinMode(A_7, OUTPUT);
-  pinMode(A_8, OUTPUT);
+  
+  pinMode(A_LATCH, OUTPUT);
+  digitalWrite(A_LATCH, HIGH);
+  
   pinMode(WR, OUTPUT);
   digitalWrite(WR, HIGH);
   Serial.begin(115200);
 }
 
-void addr(int addr) {
+void addr(long addr) {  
+  digitalWrite(A_LATCH, HIGH);
   digitalWrite(A_0, addr & 1);
   digitalWrite(A_1, addr & 2);
   digitalWrite(A_2, addr & 4);
@@ -44,9 +49,17 @@ void addr(int addr) {
   digitalWrite(A_5, addr & 32);
   digitalWrite(A_6, addr & 64);
   digitalWrite(A_7, addr & 128);
+  
   byte addrH = (addr >> 8);
-  // workaround: addr & 256 always returns 0, because somehow addr is coerced to uint8
-  digitalWrite(A_8, addrH & 1);
+  digitalWrite(A_LATCH, LOW);
+  digitalWrite(A_0, addrH & 1);
+  digitalWrite(A_1, addrH & 2);
+  digitalWrite(A_2, addrH & 4);
+  digitalWrite(A_3, addrH & 8);
+  digitalWrite(A_4, addrH & 16);
+  digitalWrite(A_5, addrH & 32);
+  digitalWrite(A_6, addrH & 64);
+  digitalWrite(A_7, addrH & 128);
 }
 
 void dataIn() {
@@ -98,30 +111,40 @@ byte read() {
   return data;
 }
 
-int to_test = 512;
-int random_seed = 0;
+long to_test = 32768;
+int random_seed = 1;
 
 void loop() {
   randomSeed(random_seed);
   for (int i=0; i<to_test; i++) {
     addr(i);
     write(random(0,255));
+    if (i % 1024 == 0) Serial.print("w");
   }
+  Serial.println("");
   
-  int okBytes = 0;
+  int failBytes = 0;
   randomSeed(random_seed);
   
   for (int i=0; i<to_test; i++) {
     addr(i);
     byte data = read();
     byte expData = random(0,255);
-    if (data == expData) okBytes++;
+    if (data != expData) failBytes++;
+    if (i % 1024 == 0) Serial.print("r");
   }
+  Serial.println("");
   
-  if (okBytes == to_test) {
-    Serial.print(okBytes);
+  if (failBytes == 0) {
+    Serial.print(to_test);
     Serial.println(" bytes OK");
   } else { // fixme: actually store the failures
+    Serial.print(failBytes);
+    Serial.print(" failed of ");
+    Serial.print(to_test);
+    Serial.println(" bytes");
+    
+    /*randomSeed(random_seed);
     for (int i=0; i<to_test; i++) {
       addr(i);
       byte data = read();
@@ -133,7 +156,7 @@ void loop() {
         Serial.print("!");
       }
     }
-    Serial.println("");
+    Serial.println("");*/
   }
   random_seed++;
 }
